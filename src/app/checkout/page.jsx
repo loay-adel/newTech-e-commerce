@@ -22,7 +22,7 @@ import {
   updateShippingLocation,
   clearCart,
 } from "@/lib/redux/slices/cartSlice";
-import { selectCurrentUser } from "@/lib/redux/slices/userSlice";
+import { selectCurrentUser, selectToken } from "@/lib/redux/slices/userSlice";
 
 import { useTranslation } from "@/lib/use-translation";
 import { toast } from "sonner";
@@ -40,11 +40,14 @@ export default function CheckoutPage() {
   const total = useSelector(selectCartTotalWithShipping);
   const shippingLocation = useSelector(selectShippingLocation);
   const currentUser = useSelector(selectCurrentUser);
+  const token = useSelector(selectToken);
+
   // Form handling
   const {
     register,
     handleSubmit,
     watch,
+    setValue,
     formState: { errors },
   } = useForm({
     defaultValues: {
@@ -71,14 +74,24 @@ export default function CheckoutPage() {
     setIsSubmitting(true);
 
     try {
+      // Check if user is authenticated
+      if (!currentUser || !token) {
+        toast.error("Please log in to complete your order");
+        router.push("/login");
+        return;
+      }
+
       // Create order in local database first
       const orderRes = await fetch(
         `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/orders`,
         {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
           body: JSON.stringify({
-            user: "current-user-id",
+            user: currentUser._id,
             orderItems: cartItems.map((item) => ({
               product: item._id,
               name: item.name,
@@ -89,9 +102,7 @@ export default function CheckoutPage() {
             shippingAddress: {
               address: data.address,
               city: data.city,
-              area: data.area,
-              postalCode: data.postalCode,
-              landmark: data.landmark,
+              postalCode: data.postalCode || "00000", // Provide default if empty
               country: "Egypt",
             },
             paymentMethod: data.paymentMethod,
@@ -104,7 +115,11 @@ export default function CheckoutPage() {
         }
       );
 
-      if (!orderRes.ok) throw new Error("Failed to create order");
+      if (!orderRes.ok) {
+        const errorData = await orderRes.json();
+        throw new Error(errorData.message || "Failed to create order");
+      }
+
       const newOrder = await orderRes.json();
 
       // For credit card payments
@@ -121,11 +136,14 @@ export default function CheckoutPage() {
           `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/payment/create-payment`,
           {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
             body: JSON.stringify({
               amount: total,
               orderId: newOrder._id,
-              userId: "current-user-id",
+              userId: currentUser._id,
               items: cartItems.map((item) => ({
                 name: item.name.substring(0, 50),
                 description:
@@ -165,7 +183,19 @@ export default function CheckoutPage() {
 
         const checkPayment = setInterval(async () => {
           try {
-            const statusRes = await fetch(`/api/orders/${newOrder._id}/status`);
+            const statusRes = await fetch(
+              `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/orders/${newOrder._id}/status`,
+              {
+                headers: {
+                  Authorization: `Bearer ${token}`,
+                },
+              }
+            );
+
+            if (!statusRes.ok) {
+              throw new Error("Failed to check payment status");
+            }
+
             const status = await statusRes.json();
 
             if (status.isPaid) {
@@ -193,6 +223,7 @@ export default function CheckoutPage() {
       setIsSubmitting(false);
     }
   };
+
   useEffect(() => {
     if (currentUser) {
       setValue("firstName", currentUser.name.split(" ")[0] || "");
@@ -204,12 +235,27 @@ export default function CheckoutPage() {
       setValue("phone", currentUser.phone || "");
     }
   }, [currentUser, setValue]);
+
   if (cartItems.length === 0) {
     return (
       <div className="container mx-auto px-4 py-12 text-center">
         <h1 className="text-3xl font-bold mb-4">{t("cart.empty")}</h1>
         <Button onClick={() => router.push("/products")}>
           {t("cart.continue_shopping")}
+        </Button>
+      </div>
+    );
+  }
+
+  // Check if user is logged in
+  if (!currentUser) {
+    return (
+      <div className="container mx-auto px-4 py-12 text-center">
+        <h1 className="text-3xl font-bold mb-4">
+          {t("checkout.login_required")}
+        </h1>
+        <Button onClick={() => router.push("/login")}>
+          {t("checkout.go_to_login")}
         </Button>
       </div>
     );
@@ -292,6 +338,29 @@ export default function CheckoutPage() {
                 )}
               </div>
 
+              <div>
+                <label htmlFor="email" className="block mb-2 font-medium">
+                  {t("checkout.email")} *
+                </label>
+                <Input
+                  id="email"
+                  type="email"
+                  {...register("email", {
+                    required: t("validation.required"),
+                    pattern: {
+                      value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
+                      message: t("validation.invalid_email"),
+                    },
+                  })}
+                  className={errors.email && "border-red-500"}
+                />
+                {errors.email && (
+                  <p className="text-red-500 text-sm mt-1">
+                    {errors.email.message}
+                  </p>
+                )}
+              </div>
+
               {/* Shipping Location Selector */}
               <div>
                 <label
@@ -313,23 +382,21 @@ export default function CheckoutPage() {
                 </select>
               </div>
 
-              <div></div>
-
               <div>
-                <label htmlFor="area" className="block mb-2 font-medium">
-                  {t("checkout.area")} *
+                <label htmlFor="city" className="block mb-2 font-medium">
+                  {t("checkout.city")} *
                 </label>
                 <Input
-                  id="area"
-                  placeholder="اسم المنطقة أو الحي"
-                  {...register("area", {
+                  id="city"
+                  placeholder="المدينة"
+                  {...register("city", {
                     required: t("validation.required"),
                   })}
-                  className={errors.area && "border-red-500"}
+                  className={errors.city && "border-red-500"}
                 />
-                {errors.area && (
+                {errors.city && (
                   <p className="text-red-500 text-sm mt-1">
-                    {errors.area.message}
+                    {errors.city.message}
                   </p>
                 )}
               </div>
@@ -356,24 +423,21 @@ export default function CheckoutPage() {
 
               <div>
                 <label htmlFor="postalCode" className="block mb-2 font-medium">
-                  {t("checkout.postal_code")}
+                  {t("checkout.postal_code")} *
                 </label>
                 <Input
                   id="postalCode"
-                  placeholder="12345 (اختياري)"
-                  {...register("postalCode")}
+                  placeholder="12345"
+                  {...register("postalCode", {
+                    required: t("validation.required"),
+                  })}
+                  className={errors.postalCode && "border-red-500"}
                 />
-              </div>
-
-              <div>
-                <label htmlFor="landmark" className="block mb-2 font-medium">
-                  {t("checkout.landmark")}
-                </label>
-                <Input
-                  id="landmark"
-                  placeholder="أقرب معلم مميز (اختياري)"
-                  {...register("landmark")}
-                />
+                {errors.postalCode && (
+                  <p className="text-red-500 text-sm mt-1">
+                    {errors.postalCode.message}
+                  </p>
+                )}
               </div>
             </CardContent>
           </Card>

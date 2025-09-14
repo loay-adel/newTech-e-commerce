@@ -63,38 +63,7 @@ const Header = () => {
   const headerRef = useRef(null);
   const router = useRouter();
 
-  const CATEGORIES = [
-    {
-      name: t("categories.pre_builds"),
-      subcategories: [t("categories.new"), t("categories.used")],
-      icon: "🖥️",
-      gradient: "from-blue-500 to-cyan-500",
-    },
-    {
-      name: t("categories.pc_parts"),
-      subcategories: [t("categories.memory"), t("categories.storage")],
-      icon: "🔧",
-      gradient: "from-purple-500 to-pink-500",
-    },
-    {
-      name: t("categories.accessories"),
-      subcategories: [
-        t("categories.keyboards"),
-        t("categories.mice"),
-        t("categories.headphones"),
-        t("categories.gaming_accessories"),
-        t("categories.adapters"),
-        t("categories.speakers"),
-        t("categories.webcams"),
-        t("categories.networking"),
-        t("categories.accessories"),
-        t("categories.power"),
-        t("categories.cleaning"),
-      ],
-      icon: "🎮",
-      gradient: "from-green-500 to-emerald-500",
-    },
-  ];
+
 
   useEffect(() => {
     setMounted(true);
@@ -237,60 +206,7 @@ const Header = () => {
             </Link>
           </div>
 
-          {/* Enhanced Desktop Navigation */}
-          <NavigationMenu className="hidden md:block mx-4 flex-1">
-            <NavigationMenuList
-              className={`flex ${
-                currentLanguage === "ar" ? "flex-row-reverse" : ""
-              }`}
-            >
-              {CATEGORIES.map((category, index) => (
-                <NavigationMenuItem key={index}>
-                  <NavigationMenuTrigger className="group bg-transparent px-4 py-3 rounded-xl hover:bg-gradient-to-r hover:from-blue-50 hover:to-purple-50 dark:hover:from-blue-950/30 dark:hover:to-purple-950/30 transition-all duration-300 border border-transparent hover:border-blue-200/50 dark:hover:border-blue-800/50 relative overflow-hidden">
-                    <div className="absolute inset-0 bg-gradient-to-r from-blue-500/5 to-purple-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                    <div className="relative flex items-center gap-2">
-                      <span className="text-2xl">{category.icon}</span>
-                      <span className="font-medium">{category.name}</span>
-                    </div>
-                  </NavigationMenuTrigger>
-                  <NavigationMenuContent className="rounded-2xl shadow-2xl border border-gray-200/50 dark:border-gray-700/50 bg-white/95 dark:bg-gray-900/95 backdrop-blur-xl overflow-hidden">
-                    <div className="absolute inset-0 bg-gradient-to-br from-blue-50/50 via-purple-50/30 to-pink-50/50 dark:from-blue-950/20 dark:via-purple-950/10 dark:to-pink-950/20" />
-                    <div className="relative grid w-[450px] gap-2 p-6 md:w-[550px] md:grid-cols-2">
-                      {category.subcategories.map((sub, subIndex) => (
-                        <NavigationMenuLink
-                          key={subIndex}
-                          asChild
-                          className="block rounded-xl p-4 hover:bg-white/70 dark:hover:bg-gray-800/70 transition-all duration-300 border border-transparent hover:border-gray-200/50 dark:hover:border-gray-700/50 group backdrop-blur-sm hover:shadow-lg"
-                        >
-                          <Link
-                            href={`/categories/${sub.toLowerCase()}`}
-                            className="flex items-center space-x-3 rtl:space-x-reverse"
-                            onClick={() => setMobileMenuOpen(false)}
-                          >
-                            <div
-                              className={`bg-gradient-to-r ${category.gradient} w-12 h-12 rounded-xl flex items-center justify-center shadow-md group-hover:shadow-lg transition-all duration-300 group-hover:scale-110`}
-                            >
-                              <div className="bg-white/30 w-7 h-7 rounded-lg flex items-center justify-center">
-                                <div className="bg-white/60 w-4 h-4 rounded-full" />
-                              </div>
-                            </div>
-                            <div className="flex flex-col">
-                              <span className="font-semibold text-gray-900 dark:text-gray-100 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors duration-300">
-                                {sub}
-                              </span>
-                              <span className="text-xs text-gray-500 dark:text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                                Explore products
-                              </span>
-                            </div>
-                          </Link>
-                        </NavigationMenuLink>
-                      ))}
-                    </div>
-                  </NavigationMenuContent>
-                </NavigationMenuItem>
-              ))}
-            </NavigationMenuList>
-          </NavigationMenu>
+
 
           {/* Enhanced Right Actions */}
           <div
@@ -376,7 +292,7 @@ const Header = () => {
                     aria-label={t("aria_labels.account")}
                   >
                     <div className="absolute inset-0 bg-gradient-to-r from-blue-500/10 to-purple-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                    {isAuthenticated ? (
+                    {mounted && isAuthenticated ? (
                       <div className="relative w-8 h-8 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 flex items-center justify-center text-white font-semibold text-sm shadow-lg">
                         <span className="text-white">
                           {currentUser?.name
@@ -567,71 +483,7 @@ const Header = () => {
           <div className="md:hidden bg-white/95 dark:bg-gray-900/95 backdrop-blur-xl border-t border-gray-200/50 dark:border-gray-800/50 animate-in slide-in-from-top duration-500 shadow-xl max-h-[80vh] overflow-y-auto">
             <div className="absolute inset-0 bg-gradient-to-br from-blue-50/30 via-purple-50/20 to-pink-50/30 dark:from-blue-950/10 dark:via-purple-950/5 dark:to-pink-950/10" />
             <div className="relative container mx-auto px-4 py-4">
-              <div className="space-y-1">
-                {CATEGORIES.map((category, index) => (
-                  <div
-                    key={index}
-                    className="border-b border-gray-200/30 dark:border-gray-800/30 pb-3 mb-3 last:border-b-0"
-                  >
-                    <button
-                      className="flex items-center justify-between w-full py-3 px-4 rounded-xl hover:bg-gradient-to-r hover:from-blue-50 hover:to-purple-50 dark:hover:from-blue-950/30 dark:hover:to-purple-950/30 transition-all duration-300 group"
-                      onClick={() => toggleCategory(index)}
-                      aria-expanded={expandedCategory === index}
-                    >
-                      <div className="flex items-center gap-3">
-                        <span className="text-2xl group-hover:scale-110 transition-transform duration-300">
-                          {category.icon}
-                        </span>
-                        <span className="font-semibold text-gray-800 dark:text-gray-200 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors duration-300">
-                          {category.name}
-                        </span>
-                      </div>
-                      <div className="transform transition-transform duration-300 group-hover:scale-110">
-                        {expandedCategory === index ? (
-                          <ChevronUp
-                            size={20}
-                            className="text-gray-500 dark:text-gray-400"
-                          />
-                        ) : (
-                          <ChevronDown
-                            size={20}
-                            className="text-gray-500 dark:text-gray-400"
-                          />
-                        )}
-                      </div>
-                    </button>
 
-                    {expandedCategory === index && (
-                      <div className="grid grid-cols-1 gap-2 mt-2 ml-2 animate-in slide-in-from-top duration-300">
-                        {category.subcategories.map((sub, subIndex) => (
-                          <Link
-                            key={subIndex}
-                            href={`/category/${sub.toLowerCase()}`}
-                            className="flex items-center gap-3 p-3 rounded-xl hover:bg-white/70 dark:hover:bg-gray-800/70 transition-all duration-300 border border-transparent hover:border-gray-200/50 dark:hover:border-gray-700/50 group backdrop-blur-sm hover:shadow-md"
-                            onClick={() => setMobileMenuOpen(false)}
-                          >
-                            <div
-                              className={`bg-gradient-to-r ${category.gradient} size-10 rounded-xl flex items-center justify-center shadow-md group-hover:shadow-lg transition-all duration-300 group-hover:scale-110`}
-                            >
-                              <div className="bg-white/30 size-6 rounded-lg flex items-center justify-center">
-                                <div className="bg-white/60 size-3 rounded-full" />
-                              </div>
-                            </div>
-                            <div className="flex flex-col">
-                              <span className="font-medium text-gray-800 dark:text-gray-200 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors duration-300">
-                                {sub}
-                              </span>
-                              <span className="text-xs text-gray-500 dark:text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                                Browse collection
-                              </span>
-                            </div>
-                          </Link>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
 
               {/* Enhanced Mobile Account Links */}
               <div className="mt-6 space-y-2 pt-4 border-t border-gray-200/30 dark:border-gray-800/30">

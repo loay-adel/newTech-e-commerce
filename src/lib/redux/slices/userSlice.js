@@ -1,19 +1,58 @@
-// lib/redux/slices/userSlice.js
+// src/lib/redux/slices/userSlice.js
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
-import axios from "@/lib/api";
+import api from "@/lib/api";
+
+// Auth utilities - Store token securely
+const authStorage = {
+  setToken: (token) => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("token", token);
+    }
+  },
+  getToken: () => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("token");
+    }
+    return null;
+  },
+  setUser: (user) => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("user", JSON.stringify(user));
+    }
+  },
+  getUser: () => {
+    if (typeof window !== "undefined") {
+      const user = localStorage.getItem("user");
+      return user ? JSON.parse(user) : null;
+    }
+    return null;
+  },
+  clear: () => {
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("token");
+      localStorage.removeItem("user");
+    }
+  },
+};
 
 // Async thunks for authentication
 export const loginUser = createAsyncThunk(
   "user/login",
   async ({ email, password }, { rejectWithValue }) => {
     try {
-      const response = await axios.post("/api/users/login", {
+      const response = await api.post("/api/users/login", {
         email,
         password,
       });
 
-      // Store only token in localStorage
-      localStorage.setItem("token", response.data.token);
+      // Store token and user data
+      authStorage.setToken(response.data.token);
+      authStorage.setUser({
+        _id: response.data._id,
+        name: response.data.name,
+        email: response.data.email,
+        phone: response.data.phone,
+      });
 
       return response.data;
     } catch (error) {
@@ -26,7 +65,7 @@ export const registerUser = createAsyncThunk(
   "user/register",
   async ({ name, email, password, phone, addresses }, { rejectWithValue }) => {
     try {
-      const response = await axios.post("/api/users/register", {
+      const response = await api.post("/api/users/register", {
         name,
         email,
         password,
@@ -34,8 +73,14 @@ export const registerUser = createAsyncThunk(
         addresses,
       });
 
-      // Store only token in localStorage
-      localStorage.setItem("token", response.data.token);
+      // Store token and user data
+      authStorage.setToken(response.data.token);
+      authStorage.setUser({
+        _id: response.data._id,
+        name: response.data.name,
+        email: response.data.email,
+        phone: response.data.phone,
+      });
 
       return response.data;
     } catch (error) {
@@ -45,11 +90,17 @@ export const registerUser = createAsyncThunk(
     }
   }
 );
+
 export const getUserProfile = createAsyncThunk(
   "user/getProfile",
   async (_, { rejectWithValue }) => {
     try {
-      const response = await axios.get("/api/users/profile");
+      const response = await api.get("/api/users/profile");
+      // Update user data in storage
+      authStorage.setUser({
+        ...authStorage.getUser(),
+        ...response.data,
+      });
       return response.data;
     } catch (error) {
       return rejectWithValue(
@@ -63,19 +114,14 @@ export const updateUserProfile = createAsyncThunk(
   "user/updateProfile",
   async (userData, { rejectWithValue }) => {
     try {
-      const response = await axios.put("/api/users/profile", userData);
+      const response = await api.put("/api/users/profile", userData);
 
-      // Update localStorage if needed
-      const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
-      localStorage.setItem(
-        "user",
-        JSON.stringify({
-          ...currentUser,
-          name: response.data.name,
-          email: response.data.email,
-          phone: response.data.phone,
-        })
-      );
+      // Update user data in storage
+      const updatedUser = {
+        ...authStorage.getUser(),
+        ...response.data,
+      };
+      authStorage.setUser(updatedUser);
 
       return response.data;
     } catch (error) {
@@ -90,33 +136,42 @@ export const logoutUser = createAsyncThunk(
   "user/logout",
   async (_, { rejectWithValue }) => {
     try {
-      // Clear localStorage
-      localStorage.removeItem("token");
-      localStorage.removeItem("user");
+      // Call backend logout endpoint
+      await api.post("/api/users/logout");
+
+      // Clear storage
+      authStorage.clear();
       return null;
     } catch (error) {
-      return rejectWithValue("Logout failed");
+      // Still clear storage even if API call fails
+      authStorage.clear();
+      return rejectWithValue(error.response?.data?.message || "Logout failed");
+    }
+  }
+);
+
+export const refreshToken = createAsyncThunk(
+  "user/refreshToken",
+  async (_, { rejectWithValue }) => {
+    try {
+      const response = await api.post("/api/users/refresh-token");
+      authStorage.setToken(response.data.token);
+      return response.data;
+    } catch (error) {
+      authStorage.clear();
+      return rejectWithValue(
+        error.response?.data?.message || "Failed to refresh token"
+      );
     }
   }
 );
 
 const initialState = {
-  currentUser: null,
-  token: typeof window !== "undefined" ? localStorage.getItem("token") : null,
+  currentUser: authStorage.getUser(),
+  token: authStorage.getToken(),
   status: "idle",
   error: null,
 };
-
-// Check if user is already logged in
-if (typeof window !== "undefined") {
-  const token = localStorage.getItem("token");
-  const user = localStorage.getItem("user");
-
-  if (token && user) {
-    initialState.currentUser = JSON.parse(user);
-    initialState.token = token;
-  }
-}
 
 const userSlice = createSlice({
   name: "user",
@@ -124,6 +179,13 @@ const userSlice = createSlice({
   reducers: {
     clearError: (state) => {
       state.error = null;
+    },
+    updateUserData: (state, action) => {
+      state.currentUser = {
+        ...state.currentUser,
+        ...action.payload,
+      };
+      authStorage.setUser(state.currentUser);
     },
   },
   extraReducers: (builder) => {
@@ -173,18 +235,42 @@ const userSlice = createSlice({
         state.token = null;
       })
       // Get Profile
+      .addCase(getUserProfile.pending, (state) => {
+        state.status = "loading";
+      })
       .addCase(getUserProfile.fulfilled, (state, action) => {
+        state.status = "succeeded";
         state.currentUser = {
           ...state.currentUser,
           ...action.payload,
         };
       })
+      .addCase(getUserProfile.rejected, (state, action) => {
+        state.status = "failed";
+        state.error = action.payload;
+      })
       // Update Profile
+      .addCase(updateUserProfile.pending, (state) => {
+        state.status = "loading";
+      })
       .addCase(updateUserProfile.fulfilled, (state, action) => {
+        state.status = "succeeded";
         state.currentUser = {
           ...state.currentUser,
           ...action.payload,
         };
+      })
+      .addCase(updateUserProfile.rejected, (state, action) => {
+        state.status = "failed";
+        state.error = action.payload;
+      })
+      // Refresh Token
+      .addCase(refreshToken.fulfilled, (state, action) => {
+        state.token = action.payload.token;
+      })
+      .addCase(refreshToken.rejected, (state) => {
+        state.token = null;
+        state.currentUser = null;
       })
       // Logout
       .addCase(logoutUser.fulfilled, (state) => {
@@ -196,7 +282,7 @@ const userSlice = createSlice({
   },
 });
 
-export const { clearError } = userSlice.actions;
+export const { clearError, updateUserData } = userSlice.actions;
 
 // Selectors
 export const selectCurrentUser = (state) => state.user.currentUser;
